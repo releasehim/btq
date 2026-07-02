@@ -54,17 +54,17 @@
                 </select>
             </div>
 
-            <button class="btn btn-danger" id="btn-reset-header" style="padding: 0.4rem 1rem; font-size: 0.8rem; height: 32px; align-self: center; background: rgba(244, 63, 94, 0.15); border: 1px solid rgba(244, 63, 94, 0.3); color: var(--accent-rose);">Reiniciar</button>
+            <button class="btn btn-danger btn-reset-header" id="btn-reset-header">Reiniciar</button>
         </div>
     </header>
 
     <main class="main-container">
         <!-- Columna Izquierda: Visualización del Árbol y Consola -->
-        <section style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <section class="main-left-column">
             <div class="glass-card tree-viewer-card">
                 <div class="tree-header">
                     <span class="tree-title">Estructura Activa: Árbol B Estándar</span>
-                    <span id="lbl-queue" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 500;">Cola: Ninguna</span>
+                    <span id="lbl-queue" class="queue-label">Cola: Ninguna</span>
                 </div>
                 <div class="tree-canvas-wrapper">
                     <svg id="tree-svg"></svg>
@@ -72,8 +72,8 @@
             </div>
 
             <!-- Consola de Log de Pasos -->
-            <div class="glass-card log-console-card" style="padding: 1rem;">
-                <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.25rem;">
+            <div class="glass-card log-console-card">
+                <h3 class="log-title">
                     Registro de Pasos del Algoritmo
                 </h3>
                 <div id="log-content" class="step-log-card">
@@ -83,10 +83,10 @@
         </section>
 
         <!-- Columna Derecha: Controles, Cuestionario y Estadísticas -->
-        <section style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <section class="main-right-column">
             <!-- Panel de Operaciones -->
             <div class="glass-card control-panel-card">
-                <h2 style="font-size: 1.1rem; font-weight: 600; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
+                <h2 class="panel-title">
                     Panel de Operaciones
                 </h2>
                 
@@ -106,7 +106,7 @@
                         <button class="btn btn-danger" id="btn-eliminar">Eliminar</button>
                     </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+                    <div class="action-buttons-grid">
                         <button class="btn btn-secondary" id="btn-generar-secuencia">Secuencia Aleatoria</button>
                         <button class="btn btn-danger" id="btn-reset">Reiniciar Árbol</button>
                     </div>
@@ -121,14 +121,14 @@
                     </div>
                 </div>
                 
-                <button class="btn btn-primary" id="btn-siguiente" style="display: none; width: 100%; margin-top: 1rem; justify-content: center; align-items: center; gap: 0.5rem;">
+                <button class="btn btn-primary btn-next-step" id="btn-siguiente">
                     Siguiente Paso <span>➔</span>
                 </button>
             </div>
 
             <!-- Tracker de Rendimiento y Didáctica -->
-            <div class="glass-card">
-                <h2 style="font-size: 1.1rem; font-weight: 600; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
+            <div class="glass-card stats-card">
+                <h2 class="panel-title">
                     Métricas de Desempeño
                 </h2>
                 
@@ -136,18 +136,18 @@
                     <div class="io-metric">
                         <label>Lecturas (Reads)</label>
                         <div id="lbl-reads" class="io-val reads">0</div>
-                        <span id="lbl-reads-opt" style="font-size: 0.75rem; color: var(--text-muted);">Tuyo (Óptimo: 0)</span>
+                        <span id="lbl-reads-opt" class="optimal-score-lbl">Tuyo (Óptimo: 0)</span>
                     </div>
                     <div class="io-metric">
                         <label>Escrituras (Writes)</label>
                         <div id="lbl-writes" class="io-val writes">0</div>
-                        <span id="lbl-writes-opt" style="font-size: 0.75rem; color: var(--text-muted);">Tuyo (Óptimo: 0)</span>
+                        <span id="lbl-writes-opt" class="optimal-score-lbl">Tuyo (Óptimo: 0)</span>
                     </div>
                 </div>
 
-                <div class="io-metric" style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem;">
+                <div class="score-row">
                     <label>Aciertos Cuestionario:</label>
-                    <div id="lbl-score" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-indigo);">0/0 (0%)</div>
+                    <div id="lbl-score" class="score-val">0/0 (0%)</div>
                 </div>
             </div>
         </section>

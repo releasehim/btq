@@ -1,0 +1,12 @@
+{
+  "name": "btq-tests",
+  "version": "1.0.0",
+  "description": "Tests unitarios para el motor de arboles B",
+  "main": "js/engine.js",
+  "scripts": {
+    "test": "node test/run.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}

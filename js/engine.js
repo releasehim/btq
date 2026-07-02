@@ -623,7 +623,10 @@ class BTreeEngine {
                     }
                 }
             } else if (policy === 'izquierdaODer' || policy === 'izquierdaYDerecha') {
-                // La política Y en árboles B estándar se comporta similar a Izq-o-Der para underflows
+                // La política Y ('izquierdaYDerecha') en el simulador de referencia HEA (catedra FOD)
+                // se comporta de forma idéntica a 'izquierdaODer' para la resolución de underflows
+                // (redistribuye primero con el izquierdo, luego con el derecho, y si no es posible fusiona con el izquierdo),
+                // según la especificación de arbolBEstrella.js (línea 2187) de la herramienta educativa.
                 action = tryLeftRedistribution();
                 if (action.success) {
                     resolved = true;
@@ -1279,6 +1282,9 @@ class BPlusTreeEngine {
                     action = rightSibling ? mergeWithRight() : (canBorrow(leftSibling) ? tryLeftRedistribution() : mergeWithLeft());
                 }
             } else if (policy === 'izquierdaODer' || policy === 'izquierdaYDerecha') {
+                // La política Y ('izquierdaYDerecha') en el simulador de referencia HEA (catedra FOD)
+                // se comporta de forma idéntica a 'izquierdaODer' para la resolución de underflows,
+                // según la especificación de arbolBEstrella.js (línea 2187) de la herramienta educativa.
                 action = tryLeftRedistribution();
                 if (action.success) {
                     resolved = true;
@@ -1939,17 +1945,27 @@ class BStarTreeEngine {
             let action = { success: false };
             if (policy === 'izquierda') {
                 action = tryLeftRedistribution();
-                if (!action.success) {
+                if (!action.success && !leftSibling) {
                     action = tryRightRedistribution();
                 }
             } else if (policy === 'derecha') {
                 action = tryRightRedistribution();
+                if (!action.success && !rightSibling) {
+                    action = tryLeftRedistribution();
+                }
+            } else if (policy === 'izquierdaODer' || policy === 'izquierdaYDerecha') {
+                // La política Y ('izquierdaYDerecha') en el simulador de referencia HEA (catedra FOD)
+                // se comporta de forma idéntica a 'izquierdaODer' para la resolución de underflows,
+                // según la especificación de arbolBEstrella.js (línea 2187) de la herramienta educativa.
+                action = tryLeftRedistribution();
+                if (!action.success) {
+                    action = tryRightRedistribution();
+                }
+            } else if (policy === 'derOIzq') {
+                action = tryRightRedistribution();
                 if (!action.success) {
                     action = tryLeftRedistribution();
                 }
-            } else {
-                action = tryLeftRedistribution();
-                if (!action.success) action = tryRightRedistribution();
             }
 
             if (action.success) {
@@ -1996,4 +2012,16 @@ class BStarTreeEngine {
         return { root: treeRoot, reads, writes, success: true };
     }
 }
+
+if (typeof module !== 'undefined' && typeof module.exports !== 'undefined') {
+    module.exports = {
+        BTreeNode,
+        BTreeEngine,
+        BPlusTreeNode,
+        BPlusTreeEngine,
+        BStarTreeNode,
+        BStarTreeEngine
+    };
+}
+
 

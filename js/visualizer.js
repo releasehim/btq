@@ -93,7 +93,7 @@ class TreeVisualizer {
             });
             const markerPath = this.createSVGElement('path', {
                 d: 'M 0 1.5 L 8 5 L 0 8.5 z',
-                fill: 'hsl(186, 100%, 48%)'
+                fill: 'hsl(142, 72%, 40%)'
             });
             marker.appendChild(markerPath);
             defs.appendChild(marker);
@@ -122,7 +122,7 @@ class TreeVisualizer {
                 const leafLink = this.createSVGElement('path', {
                     d: pathData,
                     fill: 'none',
-                    stroke: 'hsl(186, 100%, 48%)',
+                    stroke: 'hsl(142, 72%, 40%)',
                     'stroke-width': '1.5',
                     'stroke-dasharray': '4,3',
                     'marker-end': 'url(#leaf-arrow)',
