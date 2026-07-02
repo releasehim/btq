@@ -29,12 +29,14 @@ class BTreeApp {
         this.svgElement = document.getElementById('tree-svg');
         this.btnInsertar = document.getElementById('btn-insertar');
         this.btnBuscar = document.getElementById('btn-buscar');
+        this.btnEliminar = document.getElementById('btn-eliminar');
         this.btnReset = document.getElementById('btn-reset');
         this.btnGenerarSecuencia = document.getElementById('btn-generar-secuencia');
         this.btnSiguiente = document.getElementById('btn-siguiente');
         
         this.valInsertar = document.getElementById('num-insertar');
         this.valBuscar = document.getElementById('num-buscar');
+        this.valEliminar = document.getElementById('num-eliminar');
         this.selectOrden = document.getElementById('select-orden');
         this.selectPolitica = document.getElementById('select-politica');
         
@@ -62,10 +64,14 @@ class BTreeApp {
         this.valBuscar.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.triggerSearch();
         });
+        this.valEliminar.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.triggerDelete();
+        });
 
         // Botones de acción principal
         this.btnInsertar.addEventListener('click', () => this.triggerInsert());
         this.btnBuscar.addEventListener('click', () => this.triggerSearch());
+        this.btnEliminar.addEventListener('click', () => this.triggerDelete());
         this.btnReset.addEventListener('click', () => this.resetTree());
         this.btnGenerarSecuencia.addEventListener('click', () => this.generateRandomSequence());
         
@@ -122,6 +128,25 @@ class BTreeApp {
     }
 
     /**
+     * Inicia una operación de eliminación interactiva.
+     */
+    triggerDelete() {
+        if (this.activeGenerator) return;
+
+        const val = parseInt(this.valEliminar.value);
+        if (isNaN(val)) {
+            alert('Por favor ingrese un número entero válido.');
+            return;
+        }
+
+        this.valEliminar.value = '';
+        const policy = this.selectPolitica.value;
+        this.activeGenerator = this.engine.deleteGenerator(this.root, val, policy);
+        this.setUIBlockMode(true);
+        this.advanceStep();
+    }
+
+    /**
      * Resetea el simulador al estado inicial.
      */
     resetTree() {
@@ -137,23 +162,45 @@ class BTreeApp {
     }
 
     /**
-     * Genera una lista de 5 a 8 números aleatorios para insertar correlativamente.
+     * Genera una lista de 5 a 8 operaciones aleatorias mezclando altas y bajas.
      */
     generateRandomSequence() {
         if (this.activeGenerator) return;
         
         const length = 5 + Math.floor(Math.random() * 4); // entre 5 y 8
         const sequence = [];
-        while (sequence.length < length) {
-            const val = 1 + Math.floor(Math.random() * 98); // valores entre 1 y 99
-            if (!sequence.includes(val)) {
-                sequence.push(val);
+        
+        // Recolectar claves actuales en el árbol para poder borrarlas
+        const currentKeys = [];
+        const collect = (node) => {
+            if (!node) return;
+            currentKeys.push(...node.keys);
+            node.children.forEach(collect);
+        };
+        collect(this.root);
+
+        const tempKeys = [...currentKeys];
+
+        for (let i = 0; i < length; i++) {
+            // Si hay claves y el azar lo determina, elegimos borrar una clave existente
+            if (tempKeys.length > 2 && Math.random() > 0.4) {
+                const idx = Math.floor(Math.random() * tempKeys.length);
+                const val = tempKeys.splice(idx, 1)[0];
+                sequence.push({ type: 'baja', value: val });
+            } else {
+                // Generar una inserción aleatoria
+                let val;
+                do {
+                    val = 1 + Math.floor(Math.random() * 98);
+                } while (sequence.some(op => op.value === val) || tempKeys.includes(val) || currentKeys.includes(val));
+                tempKeys.push(val);
+                sequence.push({ type: 'alta', value: val });
             }
         }
         
-        this.operationQueue = sequence.map(v => ({ type: 'alta', value: v }));
+        this.operationQueue = sequence;
         this.renderState();
-        this.appendLog(`Generada secuencia de operaciones: [${sequence.map(o => `+${o}`).join(', ')}]`);
+        this.appendLog(`Secuencia aleatoria: [${sequence.map(o => `${o.type === 'alta' ? '+' : '-'}${o.value}`).join(', ')}]`);
     }
 
     /**
@@ -167,6 +214,11 @@ class BTreeApp {
         
         if (nextOp.type === 'alta') {
             this.activeGenerator = this.engine.insertGenerator(this.root, nextOp.value);
+            this.setUIBlockMode(true);
+            this.advanceStep();
+        } else if (nextOp.type === 'baja') {
+            const policy = this.selectPolitica.value;
+            this.activeGenerator = this.engine.deleteGenerator(this.root, nextOp.value, policy);
             this.setUIBlockMode(true);
             this.advanceStep();
         }
@@ -404,7 +456,7 @@ class BTreeApp {
 
         // Cola de operaciones
         if (this.operationQueue.length > 0) {
-            this.lblQueue.textContent = `Pendientes: ${this.operationQueue.length} (${this.operationQueue.map(o => `+${o.value}`).join(', ')})`;
+            this.lblQueue.textContent = `Pendientes: ${this.operationQueue.length} (${this.operationQueue.map(o => `${o.type === 'alta' ? '+' : '-'}${o.value}`).join(', ')})`;
         } else {
             this.lblQueue.textContent = 'Ninguna';
         }
@@ -421,8 +473,10 @@ class BTreeApp {
     setUIBlockMode(blocked) {
         this.valInsertar.disabled = blocked;
         this.valBuscar.disabled = blocked;
+        this.valEliminar.disabled = blocked;
         this.btnInsertar.disabled = blocked;
         this.btnBuscar.disabled = blocked;
+        this.btnEliminar.disabled = blocked;
         this.btnReset.disabled = blocked;
         this.btnGenerarSecuencia.disabled = blocked;
         this.selectOrden.disabled = blocked;
@@ -433,7 +487,7 @@ class BTreeApp {
             this.btnSiguiente.style.display = 'none';
             this.questionContent.innerHTML = `
                 <div class="prompt-placeholder">
-                    Ingresá un elemento a insertar o buscar arriba, o generá una secuencia aleatoria para iniciar el cuestionario.
+                    Ingresá un elemento a insertar, buscar o eliminar arriba, o generá una secuencia aleatoria para iniciar el cuestionario.
                 </div>
             `;
         }

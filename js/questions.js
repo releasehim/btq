@@ -32,10 +32,24 @@ class QuestionGenerator {
             case 'SEARCH_DESCEND':
                 return this.makeSearchDescendQuestion(stepEvent);
 
+            case 'BEFORE_SWAP_SUCCESSOR':
+                return this.makeBeforeSwapSuccessorQuestion(stepEvent);
+
+            case 'BEFORE_LEAF_DELETE':
+                return this.makeBeforeLeafDeleteQuestion(stepEvent);
+
+            case 'UNDERFLOW_DETECTED':
+                return this.makeUnderflowDetectedQuestion(stepEvent);
+
+            case 'REDISTRIBUTE_LEFT':
+            case 'REDISTRIBUTE_RIGHT':
+                return this.makeRedistributeQuestion(stepEvent);
+
+            case 'MERGE_LEFT':
+            case 'MERGE_RIGHT':
+                return this.makeMergeQuestion(stepEvent);
+
             default:
-                // Otros eventos (SEARCH_NODE, SEARCH_FOUND, SEARCH_NOT_FOUND, NEW_ROOT, PROPAGATE_PARENT, INSERT_COMPLETED)
-                // se muestran como información y animaciones en la UI sin bloquear con pregunta,
-                // o se pueden integrar preguntas adicionales en etapas avanzadas.
                 return null;
         }
     }
@@ -179,4 +193,142 @@ class QuestionGenerator {
 
         return { questionText, options, correctIndex, feedback };
     }
+
+    /**
+     * Pregunta sobre el intercambio con el sucesor inmediato en caso de borrado en nodo interno.
+     */
+    static makeBeforeSwapSuccessorQuestion(event) {
+        const { nodeId, key, successorNodeId, successorKey } = event;
+        
+        const questionText = `La clave ${key} a eliminar se encuentra en el nodo interno ${nodeId}. Para mantener la propiedad de orden del árbol, ¿con cuál de sus descendientes debe ser intercambiada antes de removerla?`;
+
+        const options = [
+            `Con la clave ${successorKey} (el elemento más pequeño del subárbol derecho, ubicado en la hoja ${successorNodeId}).`, // Correcta
+            `Con la clave de mayor valor del subárbol izquierdo inmediato (el predecesor inmediato).`,
+            `Con cualquier clave que se encuentre en la raíz del árbol para agilizar el borrado.`,
+            `Se puede eliminar directamente del nodo interno sin realizar ningún intercambio.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! Por convención académica (y consistencia con HEA), intercambiamos con el sucesor inmediato en la hoja (el elemento más chico de su subárbol derecho).`,
+            `Incorrecto. Si bien es teóricamente válido intercambiar con el predecesor (el mayor del subárbol izquierdo), la convención de nuestra cátedra y del sistema de referencia HEA utiliza siempre el sucesor inmediato (el más chico del derecho).`,
+            `Incorrecto. Intercambiar con un elemento cualquiera de la raíz rompería el orden de búsqueda del árbol B.`,
+            `Incorrecto. Borrar directamente un elemento de un nodo interno dejaría un puntero huérfano o alteraría los límites divisores de claves.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta simple antes de remover la clave de la hoja.
+     */
+    static makeBeforeLeafDeleteQuestion(event) {
+        const { nodeId, nodeKeys, keyToDelete, deleteIdx } = event;
+        
+        const questionText = `Procederemos a eliminar la clave ${keyToDelete} del nodo hoja ${nodeId} con claves [${nodeKeys.join(', ')}]. ¿Qué índice temporal (0-indexed) ocupa la clave que va a ser removida?`;
+
+        const options = [
+            `Ocupa el índice ${deleteIdx}.`, // Correcta
+            `Ocupa el índice ${deleteIdx === 0 ? 1 : 0}.`,
+            `El índice no es relevante ya que se borra del final del nodo.`,
+            `Siempre se elimina la clave en el índice central del nodo.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! La clave ${keyToDelete} se encuentra en la posición física de índice ${deleteIdx}.`,
+            `Incorrecto. Podés verificar contando la posición de la clave ${keyToDelete} (empezando desde 0) dentro del nodo.`,
+            `Incorrecto. Las claves están ordenadas y debemos eliminar la posición exacta para no corromper el arreglo.`,
+            `Incorrecto. Se elimina la clave buscada, no la del medio.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta crítica sobre la detección del underflow.
+     */
+    static makeUnderflowDetectedQuestion(event) {
+        const { nodeId, nodeKeys, minKeys } = event;
+        
+        const questionText = `El nodo ${nodeId} quedó con claves [${nodeKeys.join(', ')}] (cantidad: ${nodeKeys.length}). Si el mínimo de claves requerido para este orden es ${minKeys}, ¿qué situación se ha presentado?`;
+
+        const options = [
+            `Se ha producido un Underflow. El nodo tiene menos elementos del mínimo permitido y debe balancearse.`, // Correcta
+            `Se ha producido un Overflow. El nodo excede la capacidad mínima y debe dividirse.`,
+            `El nodo se encuentra en estado normal porque es un nodo hoja y no tiene restricciones.`,
+            `Se debe eliminar el nodo entero para resolver el problema inmediatamente.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! Al quedar con ${nodeKeys.length} claves (menor que el mínimo ${minKeys}), el nodo entra en bajo flujo (underflow) y requiere redistribución o fusión.`,
+            `Incorrecto. El overflow ocurre por exceso de claves (mayor a M-1), no por defecto.`,
+            `Incorrecto. Todos los nodos (hojas e internos, excepto la raíz) están sujetos a la restricción de ocupación mínima de claves.`,
+            `Incorrecto. Eliminar el nodo de forma directa rompería la estructura balanceada del árbol; se deben aplicar políticas lógicas.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta sobre redistribución.
+     */
+    static makeRedistributeQuestion(event) {
+        const { nodeId, parentId, siblingId, type } = event;
+        const direction = type === 'REDISTRIBUTE_LEFT' ? 'izquierdo' : 'derecho';
+        
+        const questionText = `Para solucionar el underflow del nodo ${nodeId}, su hermano ${direction} (${siblingId}) puede prestarle una clave porque supera el mínimo. ¿Cómo fluyen las claves en esta redistribución?`;
+
+        const options = [
+            `La clave del padre baja al nodo en underflow, y la clave extrema del hermano sube al padre como nuevo divisor.`, // Correcta
+            `La clave del hermano pasa directamente al nodo en underflow, dejando al padre intacto.`,
+            `Se mezclan todas las claves del hermano y el nodo, y se dividen en partes iguales eliminando el padre.`,
+            `La clave del padre baja al hermano, y la clave del nodo sube directamente al padre.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! En una redistribución (rotación), la clave del padre actúa como pivote bajando al nodo en underflow, y es reemplazada en el padre por la clave extrema del hermano para mantener las propiedades de orden.`,
+            `Incorrecto. Pasar una clave directamente del hermano al nodo sin involucrar al padre violaría la propiedad de búsqueda del árbol B (la clave del padre ya no separaría correctamente los límites).`,
+            `Incorrecto. La redistribución no elimina claves del padre ni fusiona los nodos; mantiene el número de nodos intacto.`,
+            `Incorrecto. Si la clave del padre baja al hermano y la del nodo sube, se empeoraría el underflow en el nodo original.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta sobre fusión.
+     */
+    static makeMergeQuestion(event) {
+        const { nodeId, parentId, siblingId, type } = event;
+        const direction = type === 'MERGE_LEFT' ? 'izquierdo' : 'derecho';
+        
+        const questionText = `Los hermanos adyacentes no tienen claves suficientes para prestar (están en su mínimo). Corresponde una fusión con el hermano ${direction} (${siblingId}). ¿Cómo se realiza esta fusión?`;
+
+        const options = [
+            `La clave del padre (que actúa de separador) baja y se concatena junto con las claves de ambos nodos en un solo nodo. El nodo en underflow se destruye.`, // Correcta
+            `Los nodos se fusionan directamente y el padre mantiene su clave separadora sin cambios.`,
+            `La clave del nodo en underflow sube al padre, y el hermano absorbe al padre directamente.`,
+            `Se crea un nodo vacío para unir a ambos hermanos, aumentando la altura del árbol.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! En una fusión, la clave separadora del padre baja y se une a las claves del hermano y del nodo con underflow. Al agruparlas en un solo nodo, el padre pierde una clave y el nodo vacío se elimina.`,
+            `Incorrecto. Si no bajara la clave del padre, esta quedaría huérfana en el padre apuntando a un único hijo fusionado, lo cual es inválido.`,
+            `Incorrecto. Subir una clave al padre cuando hay bajo flujo agravaría aún más el problema de subocupación en el árbol.`,
+            `Incorrecto. Crear un nodo vacío no soluciona el bajo flujo de claves; la fusión reduce el número de nodos en 1.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
 }
+
