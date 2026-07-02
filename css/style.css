@@ -531,3 +531,30 @@ svg {
         stroke-dashoffset: -20;
     }
 }
+
+/* --- Modos de Visualización del Simulador --- */
+
+/* MODO CUESTIONARIO: Oculta panel de operaciones manuales y consola de log */
+body.mode-cuestionario .control-panel-card,
+body.mode-cuestionario .log-console-card {
+    display: none !important;
+}
+
+/* MODO AUTOMÁTICO: Oculta panel de operaciones manuales */
+body.mode-automatico .control-panel-card {
+    display: none !important;
+}
+
+/* En modo automático y cuestionario, permitimos que el visor de árbol crezca más verticalmente */
+body.mode-cuestionario .tree-viewer-card,
+body.mode-automatico .tree-viewer-card {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+}
+
+body.mode-cuestionario .tree-canvas-wrapper,
+body.mode-automatico .tree-canvas-wrapper {
+    flex-grow: 1;
+    min-height: 500px;
+}

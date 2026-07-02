@@ -56,6 +56,11 @@ class BTreeApp {
         this.lblScore = document.getElementById('lbl-score');
         this.lblQueue = document.getElementById('lbl-queue');
         
+        // Elemento reset en cabecera
+        this.btnResetHeader = document.getElementById('btn-reset-header');
+        
+        document.body.className = `mode-${this.currentMode}`; // Inicializar clase
+        
         this.updateEngine();
         this.initEvents();
         this.renderState();
@@ -105,6 +110,7 @@ class BTreeApp {
             }
             
             this.currentMode = this.selectModo.value;
+            document.body.className = `mode-${this.currentMode}`;
             this.renderState();
 
             if (this.activeGenerator) {
@@ -113,8 +119,14 @@ class BTreeApp {
                 } else {
                     this.renderCurrentStepVisuals();
                 }
+            } else {
+                this.setUIBlockMode(false);
             }
         });
+
+        if (this.btnResetHeader) {
+            this.btnResetHeader.addEventListener('click', () => this.resetTree());
+        }
 
         // Configuración de Orden
         this.selectOrden.addEventListener('change', () => {
@@ -673,17 +685,50 @@ class BTreeApp {
         this.btnGenerarSecuencia.disabled = blocked;
         this.selectOrden.disabled = blocked;
 
+        if (this.btnResetHeader) {
+            this.btnResetHeader.disabled = blocked;
+        }
+
         if (blocked) {
             this.btnSiguiente.style.display = 'flex';
         } else {
             this.btnSiguiente.style.display = 'none';
             
-            const modeHelpText = this.currentMode === 'cuestionario' ? 'el cuestionario' : (this.currentMode === 'interactivo' ? 'la simulación interactiva' : 'la simulación automática');
-            this.questionContent.innerHTML = `
-                <div class="prompt-placeholder">
-                    Ingresá un elemento a insertar, buscar o eliminar arriba, o generá una secuencia aleatoria para iniciar ${modeHelpText}.
-                </div>
-            `;
+            if (this.currentMode === 'cuestionario') {
+                this.questionContent.innerHTML = `
+                    <div class="prompt-placeholder" style="padding: 2rem 1rem;">
+                        <h3 style="color: var(--text-primary); margin-bottom: 0.75rem; font-size: 1.1rem; font-weight: 600;">¿Listo para poner a prueba tus conocimientos?</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.5;">
+                            El sistema generará una secuencia de operaciones aleatorias de altas y bajas, y te preguntará el comportamiento del árbol en cada balanceo.
+                        </p>
+                        <button class="btn btn-primary" id="btn-start-quiz" style="margin: 0 auto; display: block; padding: 0.6rem 1.5rem; font-size: 0.9rem;">Iniciar Cuestionario</button>
+                    </div>
+                `;
+                const btnStart = document.getElementById('btn-start-quiz');
+                if (btnStart) {
+                    btnStart.addEventListener('click', () => this.generateRandomSequence());
+                }
+            } else if (this.currentMode === 'automatico') {
+                this.questionContent.innerHTML = `
+                    <div class="prompt-placeholder" style="padding: 2rem 1rem;">
+                        <h3 style="color: var(--text-primary); margin-bottom: 0.75rem; font-size: 1.1rem; font-weight: 600;">Simulación Automática</h3>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1.25rem; line-height: 1.5;">
+                            Observá cómo se construyen y reestructuran los árboles B, B+ y B* de forma automatizada (1.2s por paso).
+                        </p>
+                        <button class="btn btn-emerald" id="btn-start-auto" style="margin: 0 auto; display: block; padding: 0.6rem 1.5rem; font-size: 0.9rem; background: var(--accent-emerald); color: white;">Iniciar Reproducción</button>
+                    </div>
+                `;
+                const btnStart = document.getElementById('btn-start-auto');
+                if (btnStart) {
+                    btnStart.addEventListener('click', () => this.generateRandomSequence());
+                }
+            } else {
+                this.questionContent.innerHTML = `
+                    <div class="prompt-placeholder">
+                        Ingresá un elemento a insertar, buscar o eliminar a la derecha, o generá una secuencia aleatoria para iniciar la simulación interactiva.
+                    </div>
+                `;
+            }
         }
     }
 }
