@@ -498,16 +498,24 @@ class BTreeApp {
     renderQuestion(q) {
         this.questionCard.classList.add('active-question');
         
+        // Clonar y limpiar todos los textos que puedan contener ID de nodos
+        const cleanQ = {
+            ...q,
+            questionText: this.cleanNodeIds(q.questionText),
+            options: q.options.map(opt => this.cleanNodeIds(opt)),
+            feedback: q.feedback.map(fb => this.cleanNodeIds(fb))
+        };
+        
         let html = `
             <div class="question-header">
                 <span class="badge badge-indigo">Cuestionario</span>
                 <span style="font-size: 0.8rem; color: var(--text-muted);">Paso Crítico</span>
             </div>
-            <div class="question-text">${q.questionText}</div>
+            <div class="question-text">${cleanQ.questionText}</div>
             <div class="options-list">
         `;
 
-        q.options.forEach((opt, idx) => {
+        cleanQ.options.forEach((opt, idx) => {
             html += `
                 <div class="option-item" data-index="${idx}">${opt}</div>
             `;
@@ -521,7 +529,7 @@ class BTreeApp {
         optionsDivs.forEach(div => {
             div.addEventListener('click', (e) => {
                 const selectedIdx = parseInt(e.currentTarget.getAttribute('data-index'));
-                this.evaluateAnswer(selectedIdx, q, optionsDivs);
+                this.evaluateAnswer(selectedIdx, cleanQ, optionsDivs);
             });
         });
     }
@@ -604,7 +612,7 @@ class BTreeApp {
             <div class="prompt-placeholder">
                 <span class="badge ${modeClass}">${modeLabel}</span>
                 <p style="margin-top: 0.8rem; line-height: 1.4; color: var(--text-secondary);">
-                    ${this.currentStep.message}
+                    ${this.cleanNodeIds(this.currentStep.message)}
                 </p>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
                     ${helperText}
@@ -632,11 +640,37 @@ class BTreeApp {
         return this.root; 
     }
 
+    findNodeById(node, id) {
+        if (!node) return null;
+        if (node.id === id) return node;
+        if (node.children) {
+            for (const child of node.children) {
+                const found = this.findNodeById(child, id);
+                if (found) return found;
+            }
+        }
+        return null;
+    }
+
+    cleanNodeIds(text) {
+        if (!text) return '';
+        const root = this.activeEngine ? this.activeEngine._workingRoot : this.root;
+        return text.replace(/node_\d+/g, (match) => {
+            const node = this.findNodeById(root, match);
+            if (node) {
+                return node.keys.length > 0 ? `[${node.keys.join(', ')}]` : '[]';
+            }
+            const num = match.split('_')[1];
+            return `Nodo ${num}`;
+        });
+    }
+
     /**
      * Agrega registros formateados al visor de consola inferior.
      */
     appendLog(text) {
         if (!text) return;
+        text = this.cleanNodeIds(text);
         const entry = document.createElement('div');
         entry.className = 'log-entry';
         
