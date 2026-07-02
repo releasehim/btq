@@ -147,6 +147,7 @@ class BTreeEngine {
     *insertGenerator(root, key) {
         // Clonamos la raíz y el árbol para no corromper el estado global si se cancela o falla
         let treeRoot = root ? root.clone() : new BTreeNode(true);
+        this._workingRoot = treeRoot; // Exponer para el visualizador
         let writes = 0;
 
         // 1. Ejecutar la búsqueda de la hoja correspondiente
@@ -171,6 +172,7 @@ class BTreeEngine {
             // Caso de árbol inicialmente vacío
             leaf = new BTreeNode(true);
             treeRoot = leaf;
+            this._workingRoot = treeRoot;
             path.push(leaf);
         }
 
@@ -274,6 +276,7 @@ class BTreeEngine {
                 newRoot.children = [node, rightNode];
                 
                 treeRoot = newRoot;
+                this._workingRoot = treeRoot;
                 writes++; // Escritura de la nueva raíz creada
 
                 yield {
@@ -340,6 +343,7 @@ class BTreeEngine {
      */
     *deleteGenerator(root, key, policy = 'izquierdaODer') {
         let treeRoot = root ? root.clone() : null;
+        this._workingRoot = treeRoot; // Exponer para el visualizador
         let writes = 0;
 
         if (!treeRoot) {
@@ -462,6 +466,7 @@ class BTreeEngine {
                 if (treeRoot.keys.length === 0 && treeRoot.children.length > 0) {
                     // La raíz quedó vacía pero tiene un hijo. El hijo pasa a ser la nueva raíz.
                     treeRoot = treeRoot.children[0];
+                    this._workingRoot = treeRoot;
                     writes++; // Actualizamos la raíz
                     yield {
                         type: 'DECREASE_HEIGHT',
@@ -694,15 +699,41 @@ class BPlusTreeNode extends BTreeNode {
         this.prev = null; // Puntero secuencial al nodo hoja previo
     }
 
+    /**
+     * Clona profundamente el nodo y su sub\u00e1rbol.
+     * IMPORTANTE: next/prev se reconstruyen con rebuildLeafLinks() despu\u00e9s del clonado
+     * de la ra\u00edz, porque un clone() recursivo no puede resolver punteros cruzados
+     * entre subárboles hermanos.
+     */
     clone() {
         const copy = new BPlusTreeNode(this.isLeaf);
         copy.id = this.id;
         copy.keys = [...this.keys];
-        // En un clonado simple, mantenemos las referencias de enlaces hojas temporales
-        copy.next = this.next;
-        copy.prev = this.prev;
+        copy.next = null;
+        copy.prev = null;
         copy.children = this.children.map(child => child.clone());
         return copy;
+    }
+
+    /**
+     * Recorre las hojas de izquierda a derecha y reconstruye la cadena next/prev.
+     * Llamar sobre la ra\u00edz clonada despu\u00e9s de clone().
+     */
+    static rebuildLeafLinks(root) {
+        if (!root) return;
+        const leaves = [];
+        const collectLeaves = (node) => {
+            if (node.isLeaf) {
+                leaves.push(node);
+            } else {
+                node.children.forEach(collectLeaves);
+            }
+        };
+        collectLeaves(root);
+        for (let i = 0; i < leaves.length; i++) {
+            leaves[i].next = i < leaves.length - 1 ? leaves[i + 1] : null;
+            leaves[i].prev = i > 0 ? leaves[i - 1] : null;
+        }
     }
 }
 
@@ -801,6 +832,8 @@ class BPlusTreeEngine {
      */
     *insertGenerator(root, key) {
         let treeRoot = root ? root.clone() : new BPlusTreeNode(true);
+        if (root) BPlusTreeNode.rebuildLeafLinks(treeRoot);
+        this._workingRoot = treeRoot; // Exponer para el visualizador
         let writes = 0;
 
         const searchResult = yield* this.searchGenerator(treeRoot, key);
@@ -823,6 +856,7 @@ class BPlusTreeEngine {
         if (!leaf) {
             leaf = new BPlusTreeNode(true);
             treeRoot = leaf;
+            this._workingRoot = treeRoot;
             path.push(leaf);
         }
 
@@ -952,6 +986,7 @@ class BPlusTreeEngine {
                 newRoot.keys = [promoKey];
                 newRoot.children = [node, rightNode];
                 treeRoot = newRoot;
+                this._workingRoot = treeRoot;
                 writes++;
 
                 yield {
@@ -1012,6 +1047,8 @@ class BPlusTreeEngine {
      */
     *deleteGenerator(root, key, policy = 'izquierdaODer') {
         let treeRoot = root ? root.clone() : null;
+        if (root) BPlusTreeNode.rebuildLeafLinks(treeRoot);
+        this._workingRoot = treeRoot; // Exponer para el visualizador
         let writes = 0;
 
         if (!treeRoot) {
@@ -1069,6 +1106,7 @@ class BPlusTreeEngine {
             if (node === treeRoot) {
                 if (treeRoot.keys.length === 0 && treeRoot.children.length > 0) {
                     treeRoot = treeRoot.children[0];
+                    this._workingRoot = treeRoot;
                     writes++;
                     yield {
                         type: 'DECREASE_HEIGHT',
@@ -1340,6 +1378,7 @@ class BStarTreeEngine {
      */
     *insertGenerator(root, key, policy = 'izquierdaODer') {
         let treeRoot = root ? root.clone() : new BStarTreeNode(true);
+        this._workingRoot = treeRoot; // Exponer para el visualizador
         let writes = 0;
 
         const searchResult = yield* this.searchGenerator(treeRoot, key);
@@ -1362,6 +1401,7 @@ class BStarTreeEngine {
         if (!leaf) {
             leaf = new BStarTreeNode(true);
             treeRoot = leaf;
+            this._workingRoot = treeRoot;
             path.push(leaf);
         }
 
@@ -1445,6 +1485,7 @@ class BStarTreeEngine {
                 newRoot.children = [node, rightNode];
                 
                 treeRoot = newRoot;
+                this._workingRoot = treeRoot;
                 writes += 3; // Modificar raíz vieja, crear raíz nueva y crear hermano derecho
 
                 yield {
@@ -1662,13 +1703,297 @@ class BStarTreeEngine {
     }
 
     /**
-     * Eliminación en Árbol B*: Idéntica a Árbol B pero utilizando la ocupación mínima de B*
-     * y permitiendo propagación según las políticas lógicas.
+     * Eliminación en Árbol B*: Implementa redistribución y la fusión 3-a-2 teóricamente correcta
+     * para mantener la ocupación mínima de 2/3.
      */
     *deleteGenerator(root, key, policy = 'izquierdaODer') {
-        const btreeEngine = new BTreeEngine(this.M);
-        // Sobrescribimos el mínimo de claves temporalmente para usar la regla de B*
-        btreeEngine.minKeys = this.minKeys;
-        return yield* btreeEngine.deleteGenerator(root, key, policy);
+        let treeRoot = root ? root.clone() : null;
+        this._workingRoot = treeRoot; // Exponer para el visualizador
+        let writes = 0;
+
+        if (!treeRoot) {
+            yield {
+                type: 'DELETE_EMPTY',
+                message: 'El árbol B* está vacío.',
+                reads: 0,
+                writes: 0
+            };
+            return { root: null, reads: 0, writes: 0, success: false };
+        }
+
+        const searchResult = yield* this.searchGenerator(treeRoot, key);
+        let reads = searchResult.reads;
+
+        if (!searchResult.found) {
+            yield {
+                type: 'DELETE_NOT_FOUND',
+                key: key,
+                message: `Error: La clave ${key} no existe en el árbol B*.`,
+                reads,
+                writes
+            };
+            return { root: treeRoot, reads, writes, success: false };
+        }
+
+        const path = searchResult.path;
+        let node = path[path.length - 1];
+        let deleteIdx = searchResult.index;
+
+        if (!node.isLeaf) {
+            let succNode = node.children[deleteIdx + 1];
+            path.push(succNode);
+            reads++;
+            
+            yield {
+                type: 'SEARCH_SUCCESSOR_START',
+                nodeId: succNode.id,
+                message: `Buscando sucesor de ${key} descendiendo al nodo ${succNode.id}.`,
+                reads,
+                writes
+            };
+
+            while (!succNode.isLeaf) {
+                succNode = succNode.children[0];
+                path.push(succNode);
+                reads++;
+                yield {
+                    type: 'SEARCH_SUCCESSOR_DESCEND',
+                    nodeId: succNode.id,
+                    message: `Descendiendo al hijo izquierdo (Nodo ${succNode.id}).`,
+                    reads,
+                    writes
+                };
+            }
+
+            const successorKey = succNode.keys[0];
+            yield {
+                type: 'BEFORE_SWAP_SUCCESSOR',
+                nodeId: node.id,
+                key: key,
+                successorNodeId: succNode.id,
+                successorKey: successorKey,
+                message: `Intercambiando ${key} con su sucesor ${successorKey}.`,
+                reads,
+                writes
+            };
+
+            node.keys[deleteIdx] = successorKey;
+            succNode.keys[0] = key;
+            writes += 2;
+
+            node = succNode;
+            deleteIdx = 0;
+        }
+
+        yield {
+            type: 'BEFORE_LEAF_DELETE',
+            nodeId: node.id,
+            nodeKeys: [...node.keys],
+            keyToDelete: key,
+            deleteIdx: deleteIdx,
+            message: `Eliminando clave ${key} en la hoja B* ${node.id}.`,
+            reads,
+            writes
+        };
+
+        node.keys.splice(deleteIdx, 1);
+        writes++;
+
+        yield {
+            type: 'AFTER_LEAF_DELETE',
+            nodeId: node.id,
+            nodeKeys: [...node.keys],
+            message: `Clave eliminada. Claves actuales: [${node.keys.join(', ')}].`,
+            reads,
+            writes
+        };
+
+        while (node.keys.length < this.minKeys) {
+            if (node === treeRoot) {
+                if (treeRoot.keys.length === 0 && treeRoot.children.length > 0) {
+                    treeRoot = treeRoot.children[0];
+                    this._workingRoot = treeRoot;
+                    writes++;
+                    yield {
+                        type: 'DECREASE_HEIGHT',
+                        newRootId: treeRoot.id,
+                        message: `La raíz quedó vacía. La altura disminuye en 1.`,
+                        reads,
+                        writes
+                    };
+                }
+                break;
+            }
+
+            yield {
+                type: 'UNDERFLOW_DETECTED',
+                nodeId: node.id,
+                nodeKeys: [...node.keys],
+                minKeys: this.minKeys,
+                message: `Underflow B* en nodo ${node.id} (${node.keys.length} claves). Mínimo: ${this.minKeys}.`,
+                reads,
+                writes
+            };
+
+            path.pop();
+            const parent = path[path.length - 1];
+            const nodeIdx = parent.children.indexOf(node);
+
+            let leftSibling = nodeIdx > 0 ? parent.children[nodeIdx - 1] : null;
+            let rightSibling = nodeIdx < parent.children.length - 1 ? parent.children[nodeIdx + 1] : null;
+
+            let resolved = false;
+
+            const canBorrow = (sibling) => sibling && sibling.keys.length - 1 >= this.minKeys;
+
+            const tryLeftRedistribution = () => {
+                if (canBorrow(leftSibling)) {
+                    const parentKeyIdx = nodeIdx - 1;
+                    const parentKey = parent.keys[parentKeyIdx];
+                    const siblingKey = leftSibling.keys.pop();
+                    node.keys.unshift(parentKey);
+                    parent.keys[parentKeyIdx] = siblingKey;
+
+                    if (!node.isLeaf) {
+                        node.children.unshift(leftSibling.children.pop());
+                    }
+                    writes += 3;
+                    return { success: true, type: 'REDISTRIBUTE_LEFT', msg: `Redistribución desde hermano izquierdo en B*.` };
+                }
+                return { success: false };
+            };
+
+            const tryRightRedistribution = () => {
+                if (canBorrow(rightSibling)) {
+                    const parentKeyIdx = nodeIdx;
+                    const parentKey = parent.keys[parentKeyIdx];
+                    const siblingKey = rightSibling.keys.shift();
+                    node.keys.push(parentKey);
+                    parent.keys[parentKeyIdx] = siblingKey;
+
+                    if (!node.isLeaf) {
+                        node.children.push(rightSibling.children.shift());
+                    }
+                    writes += 3;
+                    return { success: true, type: 'REDISTRIBUTE_RIGHT', msg: `Redistribución desde hermano derecho en B*.` };
+                }
+                return { success: false };
+            };
+
+            const merge2to1 = (dir) => {
+                const isLeft = dir === 'left';
+                const sibling = isLeft ? leftSibling : rightSibling;
+                const parentKeyIdx = isLeft ? nodeIdx - 1 : nodeIdx;
+                const parentKey = parent.keys[parentKeyIdx];
+                
+                const targetNode = isLeft ? leftSibling : node;
+                const sourceNode = isLeft ? node : rightSibling;
+
+                targetNode.keys.push(parentKey, ...sourceNode.keys);
+                if (!node.isLeaf) targetNode.children.push(...sourceNode.children);
+
+                parent.keys.splice(parentKeyIdx, 1);
+                parent.children.splice(isLeft ? nodeIdx : nodeIdx + 1, 1);
+                writes += 2;
+                return { type: isLeft ? 'MERGE_LEFT' : 'MERGE_RIGHT', msg: `Fusión 2-a-1 de emergencia en la raíz.` };
+            };
+
+            const merge3to2 = () => {
+                let n1, n2, n3, pk1Idx, pk2Idx;
+                if (nodeIdx === 0) {
+                    n1 = node; n2 = parent.children[1]; n3 = parent.children[2];
+                    pk1Idx = 0; pk2Idx = 1;
+                } else if (nodeIdx === parent.children.length - 1) {
+                    n1 = parent.children[nodeIdx - 2]; n2 = parent.children[nodeIdx - 1]; n3 = node;
+                    pk1Idx = nodeIdx - 2; pk2Idx = nodeIdx - 1;
+                } else {
+                    n1 = leftSibling; n2 = node; n3 = rightSibling;
+                    pk1Idx = nodeIdx - 1; pk2Idx = nodeIdx;
+                }
+
+                const allKeys = [...n1.keys, parent.keys[pk1Idx], ...n2.keys, parent.keys[pk2Idx], ...n3.keys];
+                let allChildren = [];
+                if (!node.isLeaf) allChildren = [...n1.children, ...n2.children, ...n3.children];
+
+                const medianIdx = Math.floor(allKeys.length / 2);
+                const medianKey = allKeys[medianIdx];
+
+                const newKeys1 = allKeys.slice(0, medianIdx);
+                const newKeys2 = allKeys.slice(medianIdx + 1);
+
+                n1.keys = newKeys1;
+                n2.keys = newKeys2;
+                
+                if (!node.isLeaf) {
+                    n1.children = allChildren.slice(0, medianIdx + 1);
+                    n2.children = allChildren.slice(medianIdx + 1);
+                }
+
+                parent.keys.splice(pk1Idx, 2, medianKey);
+                parent.children.splice(pk1Idx, 3, n1, n2);
+                writes += 4;
+
+                return { type: 'BSTAR_MERGE_3_TO_2', msg: `Fusión 3-a-2 B* completada. 3 nodos reducidos a 2. Clave ${medianKey} sube al padre.` };
+            };
+
+            let action = { success: false };
+            if (policy === 'izquierda') {
+                action = tryLeftRedistribution();
+                if (!action.success) {
+                    action = tryRightRedistribution();
+                }
+            } else if (policy === 'derecha') {
+                action = tryRightRedistribution();
+                if (!action.success) {
+                    action = tryLeftRedistribution();
+                }
+            } else {
+                action = tryLeftRedistribution();
+                if (!action.success) action = tryRightRedistribution();
+            }
+
+            if (action.success) {
+                resolved = true;
+                yield {
+                    type: action.type,
+                    nodeId: node.id,
+                    parentId: parent.id,
+                    siblingId: action.type === 'REDISTRIBUTE_LEFT' ? leftSibling.id : rightSibling.id,
+                    message: action.msg,
+                    reads, writes
+                };
+            } else {
+                let mergeAction;
+                if (parent.children.length === 2) {
+                    mergeAction = leftSibling ? merge2to1('left') : merge2to1('right');
+                } else {
+                    mergeAction = merge3to2();
+                }
+                
+                yield {
+                    type: mergeAction.type,
+                    nodeId: node.id,
+                    parentId: parent.id,
+                    message: mergeAction.msg,
+                    reads, writes
+                };
+            }
+
+            if (resolved) {
+                break;
+            } else {
+                node = parent;
+            }
+        }
+
+        yield {
+            type: 'DELETE_COMPLETED',
+            rootId: treeRoot.id,
+            message: `Eliminación B* finalizada con éxito.`,
+            reads, writes
+        };
+
+        return { root: treeRoot, reads, writes, success: true };
     }
 }
+

@@ -55,6 +55,9 @@ class QuestionGenerator {
             case 'BSTAR_SPLIT_DONE':
                 return this.makeBStarSplitDoneQuestion(stepEvent);
 
+            case 'BSTAR_MERGE_3_TO_2':
+                return this.makeBStarMergeQuestion(stepEvent);
+
             default:
                 return null;
         }
@@ -386,6 +389,31 @@ class QuestionGenerator {
             `Incorrecto. Una sola clave divisora en el padre solo puede separar 2 subárboles. Necesitamos separar 3 subárboles, por lo que requerimos 2 claves divisoras.`,
             `Incorrecto. Promocionar 3 claves requeriría tener 4 subárboles hijos en esa sección, lo cual no es el caso en un split de 2 a 3.`,
             `Incorrecto. Al crearse un nodo hijo adicional (de 2 a 3), el padre obligatoriamente debe añadir una clave para direccionar el nuevo hijo.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta sobre la fusión 3-a-2 de un Árbol B*.
+     */
+    static makeBStarMergeQuestion(event) {
+        const questionText = `En un Árbol B*, si un nodo tiene un underflow y sus hermanos adyacentes están en el mínimo de ocupación (2/3 de capacidad), la política estándar no permite una fusión 2-a-1 simple porque se excedería la capacidad máxima de un nodo. ¿Cómo resuelve el Árbol B* esta situación para mantener la ocupación mínima requerida en toda la estructura?`;
+
+        const options = [
+            `Se toman 3 nodos adyacentes (el nodo y sus dos hermanos) y se fusionan redistribuyendo todas sus claves equitativamente en 2 nodos, lo que siempre garantiza que ambos queden dentro de los límites de ocupación permitidos.`, // Correcta
+            `Se toma la clave faltante prestada directamente del padre (independientemente del estado de los hermanos) y se permite que el padre propague el underflow hacia la raíz.`,
+            `Se permite temporalmente que el nodo se quede con menos de 2/3 de ocupación hasta la próxima inserción, marcándolo con un bit especial de "underflow retrasado".`,
+            `Se fusiona el nodo con su hermano más lleno formando un único nodo de doble capacidad (super-nodo) que será dividido asíncronamente luego.`
+        ];
+
+        const correctIndex = 0;
+        
+        const feedback = [
+            `¡Perfecto! Al tomar tres nodos en su capacidad mínima (junto con las 2 claves separadoras del padre), la suma de claves es suficiente para llenar exactamente dos nodos completos sin desbordarlos y superando el límite inferior de 2/3, manteniendo la garantía matemática de ocupación del B*.`,
+            `Incorrecto. Si se toma una clave del padre sin reemplazarla, el padre pierde un divisor pero sigue teniendo la misma cantidad de hijos, lo que rompe la estructura del árbol.`,
+            `Incorrecto. Los árboles B* son estrictos en cuanto a sus invariantes de ocupación. No se permiten violaciones temporales en el diseño clásico.`,
+            `Incorrecto. Los nodos tienen un tamaño de página de disco físico fijo; no pueden duplicar su capacidad para almacenar un "super-nodo".`
         ];
 
         return { questionText, options, correctIndex, feedback };

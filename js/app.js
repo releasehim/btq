@@ -154,7 +154,9 @@ class BTreeApp {
 
         this.valInsertar.value = ''; // Limpiar campo
         this.currentOperationPenalties = { reads: 0, writes: 0 };
-        this.activeGenerator = this.engine.insertGenerator(this.root, val);
+        // Pasar policy para B* que necesita redistribución en overflow según política
+        const policy = this.selectPolitica.value;
+        this.activeGenerator = this.engine.insertGenerator(this.root, val, policy);
         this.setUIBlockMode(true);
         this.advanceStep();
     }
@@ -285,6 +287,9 @@ class BTreeApp {
         this.operationQueue = sequence;
         this.renderState();
         this.appendLog(`Secuencia aleatoria: [${sequence.map(o => `${o.type === 'alta' ? '+' : '-'}${o.value}`).join(', ')}]`);
+
+        // Iniciar procesamiento automático de la cola
+        this.processNextInQueue();
     }
 
     /**
@@ -294,14 +299,17 @@ class BTreeApp {
         if (this.operationQueue.length === 0 || this.activeGenerator) return;
         
         const nextOp = this.operationQueue.shift();
+        this.currentOperationPenalties = { reads: 0, writes: 0 }; // Reset penalidades por operación
         this.renderState();
         
+        const policy = this.selectPolitica.value;
         if (nextOp.type === 'alta') {
-            this.activeGenerator = this.engine.insertGenerator(this.root, nextOp.value);
+            this.appendLog(`--- Operación: Insertar ${nextOp.value} ---`);
+            this.activeGenerator = this.engine.insertGenerator(this.root, nextOp.value, policy);
             this.setUIBlockMode(true);
             this.advanceStep();
         } else if (nextOp.type === 'baja') {
-            const policy = this.selectPolitica.value;
+            this.appendLog(`--- Operación: Eliminar ${nextOp.value} ---`);
             this.activeGenerator = this.engine.deleteGenerator(this.root, nextOp.value, policy);
             this.setUIBlockMode(true);
             this.advanceStep();
@@ -327,29 +335,46 @@ class BTreeApp {
         const result = this.activeGenerator.next();
 
         if (result.done) {
-            // El algoritmo ha finalizado exitosamente.
-            const operationSummary = result.value;
-            if (operationSummary.success) {
+            // El algoritmo ha finalizado.
+            const operationSummary = result.value || {};
+            // Normalizar campos: búsquedas devuelven { found, path, index, reads }
+            // mientras que insert/delete devuelven { root, reads, writes, success }
+            const opReads = operationSummary.reads || 0;
+            const opWrites = operationSummary.writes || 0;
+            const wasSuccessful = operationSummary.success !== undefined ? operationSummary.success : (operationSummary.found !== undefined);
+            const isSearchOp = operationSummary.found !== undefined;
+
+            if (operationSummary.root !== undefined) {
+                // Solo insert/delete tienen root
                 this.root = operationSummary.root;
-                this.accumulatedIO.reads += operationSummary.reads;
-                this.accumulatedIO.writes += operationSummary.writes;
-                this.studentIO.reads += operationSummary.reads + this.currentOperationPenalties.reads;
-                this.studentIO.writes += operationSummary.writes + this.currentOperationPenalties.writes;
             }
 
+            // Acumular E/S
+            this.accumulatedIO.reads += opReads;
+            this.accumulatedIO.writes += opWrites;
+            this.studentIO.reads += opReads + this.currentOperationPenalties.reads;
+            this.studentIO.writes += opWrites + this.currentOperationPenalties.writes;
+
             this.activeGenerator = null;
+            this.engine._workingRoot = null;
             this.currentStep = null;
             this.setUIBlockMode(false);
             
             // Mostrar pantalla de finalización de operación con tabla comparativa de costo
-            const opReads = operationSummary.reads;
-            const opWrites = operationSummary.writes;
             const studReads = opReads + this.currentOperationPenalties.reads;
             const studWrites = opWrites + this.currentOperationPenalties.writes;
             const totalPenalties = this.currentOperationPenalties.reads + this.currentOperationPenalties.writes;
 
             let summaryMessage = '';
-            if (totalPenalties === 0) {
+            if (isSearchOp) {
+                summaryMessage = `
+                    <span class="badge ${operationSummary.found ? 'badge-emerald' : 'badge-indigo'}">${operationSummary.found ? 'Clave Encontrada' : 'Clave No Encontrada'}</span>
+                    <h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">Búsqueda Finalizada</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+                        La búsqueda requirió ${opReads} lectura${opReads !== 1 ? 's' : ''} de disco.
+                    </p>
+                `;
+            } else if (totalPenalties === 0) {
                 summaryMessage = `
                     <span class="badge badge-emerald">¡Costo Óptimo Logrado!</span>
                     <h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">¡Excelente desempeño!</h3>
@@ -398,7 +423,9 @@ class BTreeApp {
                 </div>
             `;
 
-            this.appendLog(operationSummary.message);
+            if (operationSummary.message) {
+                this.appendLog(operationSummary.message);
+            }
             this.renderState();
 
             // Auto-procesar el siguiente elemento de la cola aleatoria con retraso
@@ -427,8 +454,10 @@ class BTreeApp {
         if (this.currentStep.promoKey) {
             highlightOptions.promoKey = this.currentStep.promoKey;
         }
-
-        this.visualizer.draw(this.svgElement, this.currentStep.leftKeys ? this.reconstructTreeForStep() : this.root || this.reconstructTreeForStep(), highlightOptions);
+        // Obtener el árbol actual: durante insert/delete, el engine tiene la copia de trabajo
+        // Durante search, usamos this.root (no se modifica)
+        const treeToVisualize = this.engine._workingRoot || this.root || new BTreeNode(true);
+        this.visualizer.draw(this.svgElement, treeToVisualize, highlightOptions);
         this.renderState(); // Actualizar indicadores E/S parciales
 
         // 2. Dibujar interfaz según modo
