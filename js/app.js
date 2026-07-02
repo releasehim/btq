@@ -14,6 +14,8 @@ class BTreeApp {
         
         this.activeGenerator = null;
         this.currentStep = null;
+        this.currentMode = 'cuestionario'; // Modo inicial
+        this.autoStepTimeout = null;       // Temporizador para modo automático
         
         // Métricas de E/S acumuladas (Óptimas y de Estudiante con penalidades)
         this.accumulatedIO = { reads: 0, writes: 0 }; // Óptimo acumulado
@@ -39,6 +41,7 @@ class BTreeApp {
         this.valBuscar = document.getElementById('num-buscar');
         this.valEliminar = document.getElementById('num-eliminar');
         this.selectTipo = document.getElementById('select-tipo');
+        this.selectModo = document.getElementById('select-modo');
         this.selectOrden = document.getElementById('select-orden');
         this.selectPolitica = document.getElementById('select-politica');
         
@@ -91,6 +94,25 @@ class BTreeApp {
                 this.resetTree();
             } else {
                 this.selectTipo.value = this.getTreeTypeString();
+            }
+        });
+
+        // Configuración de Modo de Simulación
+        this.selectModo.addEventListener('change', () => {
+            if (this.autoStepTimeout) {
+                clearTimeout(this.autoStepTimeout);
+                this.autoStepTimeout = null;
+            }
+            
+            this.currentMode = this.selectModo.value;
+            this.renderState();
+
+            if (this.activeGenerator) {
+                if (this.currentMode === 'automatico') {
+                    this.advanceStep();
+                } else {
+                    this.renderCurrentStepVisuals();
+                }
             }
         });
 
@@ -193,6 +215,10 @@ class BTreeApp {
      * Resetea el simulador al estado inicial.
      */
     resetTree() {
+        if (this.autoStepTimeout) {
+            clearTimeout(this.autoStepTimeout);
+            this.autoStepTimeout = null;
+        }
         this.updateEngine();
         this.root = null;
         this.activeGenerator = null;
@@ -275,6 +301,11 @@ class BTreeApp {
      */
     advanceStep() {
         if (!this.activeGenerator) return;
+
+        if (this.autoStepTimeout) {
+            clearTimeout(this.autoStepTimeout);
+            this.autoStepTimeout = null;
+        }
 
         // Limpiar estado de la tarjeta de preguntas
         this.questionCard.className = 'glass-card question-card';
@@ -388,13 +419,34 @@ class BTreeApp {
         this.visualizer.draw(this.svgElement, this.currentStep.leftKeys ? this.reconstructTreeForStep() : this.root || this.reconstructTreeForStep(), highlightOptions);
         this.renderState(); // Actualizar indicadores E/S parciales
 
-        // 2. Generar pregunta didáctica
-        const question = QuestionGenerator.generateQuestion(this.currentStep);
+        // 2. Dibujar interfaz según modo
+        this.renderCurrentStepVisuals();
 
-        if (question) {
-            this.renderQuestion(question);
+        // 3. Si es automático, programar siguiente paso
+        if (this.currentMode === 'automatico') {
+            this.autoStepTimeout = setTimeout(() => {
+                this.advanceStep();
+            }, 1200);
+        }
+    }
+
+    /**
+     * Dibuja el estado del cuestionario / paso informativo basado en el modo actual.
+     */
+    renderCurrentStepVisuals() {
+        if (!this.currentStep) return;
+
+        this.questionCard.className = 'glass-card question-card';
+        this.questionContent.innerHTML = '';
+
+        if (this.currentMode === 'cuestionario') {
+            const question = QuestionGenerator.generateQuestion(this.currentStep);
+            if (question) {
+                this.renderQuestion(question);
+            } else {
+                this.renderInformativeStep();
+            }
         } else {
-            // Pasos puramente visuales/informativos (e.g. SEARCH_NODE, NEW_ROOT)
             this.renderInformativeStep();
         }
     }
@@ -489,18 +541,41 @@ class BTreeApp {
      * Paso informativo que no requiere evaluar conocimiento (auto-avanzable).
      */
     renderInformativeStep() {
+        let modeLabel = '';
+        let modeClass = 'badge-indigo';
+        let helperText = '';
+        
+        if (this.currentMode === 'automatico') {
+            modeLabel = 'Automático';
+            modeClass = 'badge-emerald';
+            helperText = 'Modo automático activo. Avanzando solo...';
+        } else if (this.currentMode === 'interactivo') {
+            modeLabel = 'Interactivo';
+            modeClass = 'badge-indigo';
+            helperText = 'Revisá la animación arriba y hacé clic en "Siguiente Paso" para continuar.';
+        } else {
+            modeLabel = 'Visualizando';
+            modeClass = 'badge-indigo';
+            helperText = 'Revisá la animación arriba y hacé clic en "Siguiente Paso" para continuar.';
+        }
+
         this.questionContent.innerHTML = `
             <div class="prompt-placeholder">
-                <span class="badge badge-indigo">Visualizando</span>
+                <span class="badge ${modeClass}">${modeLabel}</span>
                 <p style="margin-top: 0.8rem; line-height: 1.4; color: var(--text-secondary);">
                     ${this.currentStep.message}
                 </p>
                 <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">
-                    Revisá la animación del árbol arriba y hacé clic en "Siguiente" para avanzar.
+                    ${helperText}
                 </p>
             </div>
         `;
-        this.btnSiguiente.disabled = false;
+
+        if (this.currentMode === 'automatico') {
+            this.btnSiguiente.disabled = true;
+        } else {
+            this.btnSiguiente.disabled = false;
+        }
     }
 
     /**
@@ -602,9 +677,11 @@ class BTreeApp {
             this.btnSiguiente.style.display = 'flex';
         } else {
             this.btnSiguiente.style.display = 'none';
+            
+            const modeHelpText = this.currentMode === 'cuestionario' ? 'el cuestionario' : (this.currentMode === 'interactivo' ? 'la simulación interactiva' : 'la simulación automática');
             this.questionContent.innerHTML = `
                 <div class="prompt-placeholder">
-                    Ingresá un elemento a insertar, buscar o eliminar arriba, o generá una secuencia aleatoria para iniciar el cuestionario.
+                    Ingresá un elemento a insertar, buscar o eliminar arriba, o generá una secuencia aleatoria para iniciar ${modeHelpText}.
                 </div>
             `;
         }
