@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Árboles B Interactivos - Cátedra FOD (UNLP)</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span class="brand-icon">⛃</span>
+            <h1 class="brand-title">Simulador de Árboles B</h1>
+        </div>
+        
+        <div class="config-bar">
+            <div class="input-group">
+                <label for="select-orden">Orden (M):</label>
+                <select id="select-orden">
+                    <option value="4" selected>M = 4 (Claves: 1 a 3)</option>
+                    <option value="5">M = 5 (Claves: 1 a 4)</option>
+                    <option value="6">M = 6 (Claves: 2 a 5)</option>
+                    <option value="7">M = 7 (Claves: 2 a 6)</option>
+                </select>
+            </div>
+            
+            <div class="input-group">
+                <label for="select-politica">Política Underflow:</label>
+                <select id="select-politica">
+                    <option value="izquierdaODer" selected>Izquierda o Derecha</option>
+                    <option value="derOIzq">Derecha o Izquierda</option>
+                    <option value="izquierda">Solo Izquierda</option>
+                    <option value="derecha">Solo Derecha</option>
+                    <option value="izquierdaYDerecha">Izquierda y Derecha (Y)</option>
+                </select>
+            </div>
+        </div>
+    </header>
+
+    <main class="main-container">
+        <!-- Columna Izquierda: Visualización del Árbol y Consola -->
+        <section style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <div class="glass-card tree-viewer-card">
+                <div class="tree-header">
+                    <span class="tree-title">Estructura Activa: Árbol B Estándar</span>
+                    <span id="lbl-queue" style="font-size: 0.8rem; color: var(--accent-cyan); font-weight: 500;">Cola: Ninguna</span>
+                </div>
+                <div class="tree-canvas-wrapper">
+                    <svg id="tree-svg"></svg>
+                </div>
+            </div>
+
+            <!-- Consola de Log de Pasos -->
+            <div class="glass-card" style="padding: 1rem;">
+                <h3 style="font-size: 0.9rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.5rem; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.25rem;">
+                    Registro de Pasos del Algoritmo
+                </h3>
+                <div id="log-content" class="step-log-card">
+                    <!-- Se llena dinámicamente -->
+                </div>
+            </div>
+        </section>
+
+        <!-- Columna Derecha: Controles, Cuestionario y Estadísticas -->
+        <section style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Panel de Operaciones -->
+            <div class="glass-card">
+                <h2 style="font-size: 1.1rem; font-weight: 600; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
+                    Panel de Operaciones
+                </h2>
+                
+                <div class="control-panel">
+                    <div class="control-group">
+                        <input type="number" id="num-insertar" placeholder="Clave a insertar" min="1" max="999">
+                        <button class="btn btn-primary" id="btn-insertar">Insertar</button>
+                    </div>
+                    
+                    <div class="control-group">
+                        <input type="number" id="num-buscar" placeholder="Clave a buscar" min="1" max="999">
+                        <button class="btn btn-secondary" id="btn-buscar">Buscar</button>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.5rem;">
+                        <button class="btn btn-secondary" id="btn-generar-secuencia">Secuencia Aleatoria</button>
+                        <button class="btn btn-danger" id="btn-reset">Reiniciar Árbol</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Cuestionario / Pregunta del Paso Activo -->
+            <div id="question-card" class="glass-card question-card">
+                <div id="question-content">
+                    <div class="prompt-placeholder">
+                        Ingresá un elemento a insertar o buscar arriba, o generá una secuencia aleatoria para iniciar el cuestionario.
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" id="btn-siguiente" style="display: none; width: 100%; margin-top: 1rem; justify-content: center; align-items: center; gap: 0.5rem;">
+                    Siguiente Paso <span>➔</span>
+                </button>
+            </div>
+
+            <!-- Tracker de Rendimiento y Didáctica -->
+            <div class="glass-card">
+                <h2 style="font-size: 1.1rem; font-weight: 600; border-bottom: 1px solid var(--border-glass); padding-bottom: 0.5rem;">
+                    Métricas de Desempeño
+                </h2>
+                
+                <div class="io-tracker-card">
+                    <div class="io-metric">
+                        <label>Lecturas (Reads)</label>
+                        <div id="lbl-reads" class="io-val reads">0</div>
+                    </div>
+                    <div class="io-metric">
+                        <label>Escrituras (Writes)</label>
+                        <div id="lbl-writes" class="io-val writes">0</div>
+                    </div>
+                </div>
+
+                <div class="io-metric" style="margin-top: 1rem; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem;">
+                    <label>Aciertos Cuestionario:</label>
+                    <div id="lbl-score" style="font-size: 1.1rem; font-weight: 700; color: var(--accent-indigo);">0/0 (0%)</div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Cargar Scripts en Orden de Dependencia -->
+    <script src="js/engine.js"></script>
+    <script src="js/questions.js"></script>
+    <script src="js/visualizer.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
