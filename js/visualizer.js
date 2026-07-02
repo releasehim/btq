@@ -77,6 +77,60 @@ class TreeVisualizer {
 
         // 5. Dibujar los nodos
         this.drawNodes(svgElement, root, highlightOptions);
+
+        // 6. Si es un Árbol B+, dibujar enlaces secuenciales horizontales entre hojas
+        if (root && ('next' in root)) {
+            // Añadir definiciones de marcadores para las puntas de flecha
+            const defs = this.createSVGElement('defs');
+            const marker = this.createSVGElement('marker', {
+                id: 'leaf-arrow',
+                viewBox: '0 0 10 10',
+                refX: '8',
+                refY: '5',
+                markerWidth: '6',
+                markerHeight: '6',
+                orient: 'auto-start-reverse'
+            });
+            const markerPath = this.createSVGElement('path', {
+                d: 'M 0 1.5 L 8 5 L 0 8.5 z',
+                fill: 'hsl(186, 100%, 48%)'
+            });
+            marker.appendChild(markerPath);
+            defs.appendChild(marker);
+            svgElement.appendChild(defs);
+
+            // Filtrar todos los nodos hojas
+            const leaves = [];
+            this.traverseNodes(root, n => {
+                if (n.isLeaf) leaves.push(n);
+            });
+
+            // Ordenar hojas por coordenada X para dibujarlas correlativamente
+            leaves.sort((a, b) => a.x - b.x);
+
+            for (let i = 0; i < leaves.length - 1; i++) {
+                const cur = leaves[i];
+                const nxt = leaves[i + 1];
+
+                const startX = cur.x + (cur.keys.length * this.cellWidth) / 2;
+                const startY = cur.y + this.cellHeight / 2;
+                const endX = nxt.x - (nxt.keys.length * this.cellWidth) / 2;
+                const endY = nxt.y + this.cellHeight / 2;
+
+                // Dibujar una curva sutil debajo del nivel para conectar las hojas secuencialmente
+                const pathData = `M ${startX} ${startY} Q ${(startX + endX) / 2} ${startY + 20} ${endX} ${endY}`;
+                const leafLink = this.createSVGElement('path', {
+                    d: pathData,
+                    fill: 'none',
+                    stroke: 'hsl(186, 100%, 48%)',
+                    'stroke-width': '1.5',
+                    'stroke-dasharray': '4,3',
+                    'marker-end': 'url(#leaf-arrow)',
+                    class: 'leaf-sequence-link'
+                });
+                svgElement.appendChild(leafLink);
+            }
+        }
     }
 
     /**

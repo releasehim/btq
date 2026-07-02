@@ -9,7 +9,7 @@
 class BTreeApp {
     constructor() {
         this.root = null;
-        this.engine = new BTreeEngine(4); // Valor inicial orden M=4
+        this.engine = null; // Se inicializa abajo en updateEngine()
         this.visualizer = new TreeVisualizer();
         
         this.activeGenerator = null;
@@ -37,6 +37,7 @@ class BTreeApp {
         this.valInsertar = document.getElementById('num-insertar');
         this.valBuscar = document.getElementById('num-buscar');
         this.valEliminar = document.getElementById('num-eliminar');
+        this.selectTipo = document.getElementById('select-tipo');
         this.selectOrden = document.getElementById('select-orden');
         this.selectPolitica = document.getElementById('select-politica');
         
@@ -49,6 +50,7 @@ class BTreeApp {
         this.lblScore = document.getElementById('lbl-score');
         this.lblQueue = document.getElementById('lbl-queue');
         
+        this.updateEngine();
         this.initEvents();
         this.renderState();
     }
@@ -78,12 +80,22 @@ class BTreeApp {
         // Botón de paso a paso
         this.btnSiguiente.addEventListener('click', () => this.advanceStep());
         
+        // Configuración de Tipo de Árbol
+        this.selectTipo.addEventListener('change', () => {
+            const confirmChange = confirm('Cambiar el tipo de árbol destruirá el árbol actual. ¿Realmente desea continuar?');
+            if (confirmChange) {
+                this.updateEngine();
+                this.resetTree();
+            } else {
+                this.selectTipo.value = this.getTreeTypeString();
+            }
+        });
+
         // Configuración de Orden
         this.selectOrden.addEventListener('change', () => {
             const confirmChange = confirm('Cambiar el orden M destruirá el árbol actual. ¿Realmente desea continuar?');
             if (confirmChange) {
-                const M = parseInt(this.selectOrden.value);
-                this.engine = new BTreeEngine(M);
+                this.updateEngine();
                 this.resetTree();
             } else {
                 this.selectOrden.value = this.engine.M; // Revertir
@@ -147,9 +159,35 @@ class BTreeApp {
     }
 
     /**
+     * Instancia el motor correspondiente al tipo de árbol y orden seleccionados.
+     */
+    updateEngine() {
+        const M = parseInt(this.selectOrden.value);
+        const tipo = this.selectTipo.value;
+        if (tipo === 'arbolB') {
+            this.engine = new BTreeEngine(M);
+        } else if (tipo === 'arbolBMas') {
+            this.engine = new BPlusTreeEngine(M);
+        } else if (tipo === 'arbolBEstrella') {
+            this.engine = new BStarTreeEngine(M);
+        }
+    }
+
+    /**
+     * Helper para obtener la representación string del motor actual.
+     */
+    getTreeTypeString() {
+        if (this.engine instanceof BTreeEngine) return 'arbolB';
+        if (this.engine instanceof BPlusTreeEngine) return 'arbolBMas';
+        if (this.engine instanceof BStarTreeEngine) return 'arbolBEstrella';
+        return 'arbolB';
+    }
+
+    /**
      * Resetea el simulador al estado inicial.
      */
     resetTree() {
+        this.updateEngine();
         this.root = null;
         this.activeGenerator = null;
         this.currentStep = null;
@@ -459,6 +497,13 @@ class BTreeApp {
             this.lblQueue.textContent = `Pendientes: ${this.operationQueue.length} (${this.operationQueue.map(o => `${o.type === 'alta' ? '+' : '-'}${o.value}`).join(', ')})`;
         } else {
             this.lblQueue.textContent = 'Ninguna';
+        }
+
+        // Renderizar el tipo de árbol en el encabezado de visualización
+        const lblTreeType = document.querySelector('.tree-title');
+        if (lblTreeType) {
+            const typeName = this.selectTipo.options[this.selectTipo.selectedIndex].text;
+            lblTreeType.textContent = `Estructura Activa: ${typeName} (Orden ${this.engine.M})`;
         }
 
         // Renderizar el árbol real actual

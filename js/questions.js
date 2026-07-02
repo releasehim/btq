@@ -49,6 +49,12 @@ class QuestionGenerator {
             case 'MERGE_RIGHT':
                 return this.makeMergeQuestion(stepEvent);
 
+            case 'BSTAR_SPLIT_START':
+                return this.makeBStarSplitStartQuestion(stepEvent);
+
+            case 'BSTAR_SPLIT_DONE':
+                return this.makeBStarSplitDoneQuestion(stepEvent);
+
             default:
                 return null;
         }
@@ -326,6 +332,60 @@ class QuestionGenerator {
             `Incorrecto. Si no bajara la clave del padre, esta quedaría huérfana en el padre apuntando a un único hijo fusionado, lo cual es inválido.`,
             `Incorrecto. Subir una clave al padre cuando hay bajo flujo agravaría aún más el problema de subocupación en el árbol.`,
             `Incorrecto. Crear un nodo vacío no soluciona el bajo flujo de claves; la fusión reduce el número de nodos en 1.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta sobre el inicio de la división 2-a-3 en B*.
+     */
+    static makeBStarSplitStartQuestion(event) {
+        const { nodeId, siblingId } = event;
+        
+        const questionText = `En este Árbol B*, el nodo ${nodeId} ha desbordado y su hermano adyacente ${siblingId} también está lleno. ¿Qué acción corresponde según el algoritmo B*?`;
+
+        const options = [
+            `Se inicia una partición de 2 nodos en 3. Agruparemos sus claves junto con el separador del padre en un vector total.`, // Correcta
+            `Se realiza un split 1-a-2 clásico sobre el nodo desbordado, ignorando al hermano.`,
+            `Se fusionan ambos nodos en uno solo, reduciendo la altura del árbol.`,
+            `Se descarta la inserción para evitar romper el factor de ocupación de dos tercios.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! En un Árbol B*, la división solo se realiza cuando el nodo y sus hermanos están llenos. Se toman las claves de ambos hermanos más la clave divisora del padre, y se reparten equitativamente para formar 3 nuevos nodos (un split de 2 a 3).`,
+            `Incorrecto. El split 1-a-2 clásico ocurre en árboles B y B+ estándar, o en la raíz de B*, pero no en nodos internos de B* con hermanos.`,
+            `Incorrecto. La fusión se realiza cuando hay underflow, no cuando hay overflow de claves.`,
+            `Incorrecto. El árbol B* es dinámico y auto-balanceado; nunca se descartan operaciones válidas por falta de espacio.`
+        ];
+
+        return { questionText, options, correctIndex, feedback };
+    }
+
+    /**
+     * Pregunta sobre el resultado del split 2-a-3 en B*.
+     */
+    static makeBStarSplitDoneQuestion(event) {
+        const { promoKeys } = event;
+        
+        const questionText = `Tras realizar la partición de 2 nodos en 3, ¿cuántas claves divisoras deben ser promocionadas (subidas) al nodo padre para indexar correctamente los 3 nuevos nodos?`;
+
+        const options = [
+            `Deben promocionarse 2 claves divisoras, ya que indexamos 3 subárboles (hijos).`, // Correcta
+            `Se promociona solo 1 clave como en los splits clásicos.`,
+            `Se promocionan 3 claves, una por cada nuevo nodo creado.`,
+            `No sube ninguna clave; el padre se reestructura de forma implícita.`
+        ];
+
+        const correctIndex = 0;
+
+        const feedback = [
+            `¡Correcto! Al dividir el contenido de 2 nodos en 3, necesitamos exactamente 2 claves separadoras en el nodo padre para demarcar los límites de búsqueda de los 3 nuevos nodos hijos.`,
+            `Incorrecto. Una sola clave divisora en el padre solo puede separar 2 subárboles. Necesitamos separar 3 subárboles, por lo que requerimos 2 claves divisoras.`,
+            `Incorrecto. Promocionar 3 claves requeriría tener 4 subárboles hijos en esa sección, lo cual no es el caso en un split de 2 a 3.`,
+            `Incorrecto. Al crearse un nodo hijo adicional (de 2 a 3), el padre obligatoriamente debe añadir una clave para direccionar el nuevo hijo.`
         ];
 
         return { questionText, options, correctIndex, feedback };

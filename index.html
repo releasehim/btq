@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Árboles B Interactivos - Cátedra FOD (UNLP)</title>
+    <title>B-Tree Questions</title>
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -15,6 +15,15 @@
         </div>
         
         <div class="config-bar">
+            <div class="input-group">
+                <label for="select-tipo">Tipo de Árbol:</label>
+                <select id="select-tipo">
+                    <option value="arbolB" selected>Árbol B</option>
+                    <option value="arbolBMas">Árbol B+</option>
+                    <option value="arbolBEstrella">Árbol B*</option>
+                </select>
+            </div>
+
             <div class="input-group">
                 <label for="select-orden">Orden (M):</label>
                 <select id="select-orden">
