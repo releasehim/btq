@@ -15,9 +15,10 @@ class BTreeApp {
         this.activeGenerator = null;
         this.currentStep = null;
         
-        // Métricas de E/S acumuladas y óptimas
-        this.accumulatedIO = { reads: 0, writes: 0 };
-        this.optimalIO = { reads: 0, writes: 0 };
+        // Métricas de E/S acumuladas (Óptimas y de Estudiante con penalidades)
+        this.accumulatedIO = { reads: 0, writes: 0 }; // Óptimo acumulado
+        this.studentIO = { reads: 0, writes: 0 };     // Alumno acumulado
+        this.currentOperationPenalties = { reads: 0, writes: 0 }; // Penalidades de la operación activa
         
         // Puntuación del alumno en el cuestionario
         this.score = { correct: 0, total: 0 };
@@ -47,6 +48,8 @@ class BTreeApp {
         
         this.lblReads = document.getElementById('lbl-reads');
         this.lblWrites = document.getElementById('lbl-writes');
+        this.lblReadsOpt = document.getElementById('lbl-reads-opt');
+        this.lblWritesOpt = document.getElementById('lbl-writes-opt');
         this.lblScore = document.getElementById('lbl-score');
         this.lblQueue = document.getElementById('lbl-queue');
         
@@ -116,6 +119,7 @@ class BTreeApp {
         }
 
         this.valInsertar.value = ''; // Limpiar campo
+        this.currentOperationPenalties = { reads: 0, writes: 0 };
         this.activeGenerator = this.engine.insertGenerator(this.root, val);
         this.setUIBlockMode(true);
         this.advanceStep();
@@ -134,6 +138,7 @@ class BTreeApp {
         }
 
         this.valBuscar.value = '';
+        this.currentOperationPenalties = { reads: 0, writes: 0 };
         this.activeGenerator = this.engine.searchGenerator(this.root, val);
         this.setUIBlockMode(true);
         this.advanceStep();
@@ -152,6 +157,7 @@ class BTreeApp {
         }
 
         this.valEliminar.value = '';
+        this.currentOperationPenalties = { reads: 0, writes: 0 };
         const policy = this.selectPolitica.value;
         this.activeGenerator = this.engine.deleteGenerator(this.root, val, policy);
         this.setUIBlockMode(true);
@@ -192,6 +198,8 @@ class BTreeApp {
         this.activeGenerator = null;
         this.currentStep = null;
         this.accumulatedIO = { reads: 0, writes: 0 };
+        this.studentIO = { reads: 0, writes: 0 };
+        this.currentOperationPenalties = { reads: 0, writes: 0 };
         this.score = { correct: 0, total: 0 };
         this.operationQueue = [];
         this.setUIBlockMode(false);
@@ -282,24 +290,68 @@ class BTreeApp {
                 this.root = operationSummary.root;
                 this.accumulatedIO.reads += operationSummary.reads;
                 this.accumulatedIO.writes += operationSummary.writes;
+                this.studentIO.reads += operationSummary.reads + this.currentOperationPenalties.reads;
+                this.studentIO.writes += operationSummary.writes + this.currentOperationPenalties.writes;
             }
 
             this.activeGenerator = null;
             this.currentStep = null;
             this.setUIBlockMode(false);
             
-            // Mostrar pantalla de finalización de operación
+            // Mostrar pantalla de finalización de operación con tabla comparativa de costo
+            const opReads = operationSummary.reads;
+            const opWrites = operationSummary.writes;
+            const studReads = opReads + this.currentOperationPenalties.reads;
+            const studWrites = opWrites + this.currentOperationPenalties.writes;
+            const totalPenalties = this.currentOperationPenalties.reads + this.currentOperationPenalties.writes;
+
+            let summaryMessage = '';
+            if (totalPenalties === 0) {
+                summaryMessage = `
+                    <span class="badge badge-emerald">¡Costo Óptimo Logrado!</span>
+                    <h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">¡Excelente desempeño!</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+                        Ejecutaste la operación con el mínimo absoluto de accesos físicos a disco.
+                    </p>
+                `;
+            } else {
+                summaryMessage = `
+                    <span class="badge badge-indigo">Operación Terminada</span>
+                    <h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem; color: var(--accent-rose);">Costo con Penalizaciones</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">
+                        Por tus ${totalPenalties} errores en el cuestionario, incurriste en lecturas o escrituras innecesarias en disco.
+                    </p>
+                `;
+            }
+
             this.questionContent.innerHTML = `
                 <div class="prompt-placeholder">
-                    <span class="badge badge-emerald">Operación Terminada</span>
-                    <h3 style="margin-top: 0.5rem; margin-bottom: 0.5rem;">Costo de la Operación actual:</h3>
-                    <p style="font-size: 0.9rem; color: var(--text-secondary);">
-                        Lecturas a Disco (Reads): <strong style="color: var(--accent-cyan);">${operationSummary.reads}</strong><br>
-                        Escrituras a Disco (Writes): <strong style="color: var(--accent-rose);">${operationSummary.writes}</strong>
-                    </p>
-                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.75rem;">
-                        El árbol se ha actualizado al nuevo estado permanente.
-                    </p>
+                    ${summaryMessage}
+                    
+                    <div style="margin-top: 1rem; border-top: 1px solid var(--border-glass); padding-top: 0.75rem; text-align: left; width: 100%;">
+                        <h4 style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 0.5rem; font-weight: 600;">Accesos a disco (esta operación):</h4>
+                        <table style="width: 100%; font-size: 0.8rem; color: var(--text-secondary); border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.06); text-align: left;">
+                                    <th style="padding: 0.35rem 0; font-weight: 500; color: var(--text-muted);">Métrica</th>
+                                    <th style="padding: 0.35rem 0; font-weight: 500; color: var(--text-muted);">Tuyo</th>
+                                    <th style="padding: 0.35rem 0; font-weight: 500; color: var(--text-muted);">Óptimo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr style="border-bottom: 1px solid rgba(255,255,255,0.03);">
+                                    <td style="padding: 0.4rem 0; color: var(--accent-cyan);">Lecturas (Reads)</td>
+                                    <td style="padding: 0.4rem 0;"><strong>${studReads}</strong></td>
+                                    <td style="padding: 0.4rem 0;">${opReads}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 0.4rem 0; color: var(--accent-rose);">Escrituras (Writes)</td>
+                                    <td style="padding: 0.4rem 0;"><strong>${studWrites}</strong></td>
+                                    <td style="padding: 0.4rem 0;">${opWrites}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             `;
 
@@ -308,7 +360,7 @@ class BTreeApp {
 
             // Auto-procesar el siguiente elemento de la cola aleatoria con retraso
             if (this.operationQueue.length > 0) {
-                setTimeout(() => this.processNextInQueue(), 1500);
+                setTimeout(() => this.processNextInQueue(), 2500);
             }
             return;
         }
@@ -399,6 +451,13 @@ class BTreeApp {
             this.questionCard.classList.add('correct-answer');
         } else {
             this.questionCard.classList.add('incorrect-answer');
+            
+            // Aplicar penalidad de E/S lógica al cometer error conceptual
+            if (q.questionText.includes('índice') || q.questionText.includes('puntero') || q.questionText.includes('descender')) {
+                this.currentOperationPenalties.reads++; // Penalidad de lectura extra
+            } else {
+                this.currentOperationPenalties.writes++; // Penalidad de escritura extra
+            }
         }
 
         // Colorear opciones
@@ -482,8 +541,21 @@ class BTreeApp {
      * Dibuja los contadores de la UI.
      */
     renderState() {
-        this.lblReads.textContent = this.accumulatedIO.reads + (this.currentStep ? this.currentStep.reads || 0 : 0);
-        this.lblWrites.textContent = this.accumulatedIO.writes + (this.currentStep ? this.currentStep.writes || 0 : 0);
+        // Calcular lecturas y escrituras acumuladas del estudiante
+        const curPenalReads = this.currentStep ? this.currentOperationPenalties.reads : 0;
+        const curPenalWrites = this.currentStep ? this.currentOperationPenalties.writes : 0;
+        
+        const totalStudReads = this.studentIO.reads + (this.currentStep ? (this.currentStep.reads || 0) : 0) + curPenalReads;
+        const totalStudWrites = this.studentIO.writes + (this.currentStep ? (this.currentStep.writes || 0) : 0) + curPenalWrites;
+
+        const totalOptReads = this.accumulatedIO.reads + (this.currentStep ? (this.currentStep.reads || 0) : 0);
+        const totalOptWrites = this.accumulatedIO.writes + (this.currentStep ? (this.currentStep.writes || 0) : 0);
+
+        this.lblReads.textContent = totalStudReads;
+        this.lblWrites.textContent = totalStudWrites;
+
+        this.lblReadsOpt.textContent = `Tuyo (Óptimo: ${totalOptReads})`;
+        this.lblWritesOpt.textContent = `Tuyo (Óptimo: ${totalOptWrites})`;
         
         if (this.score.total > 0) {
             const percent = Math.round((this.score.correct / this.score.total) * 100);

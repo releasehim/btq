@@ -519,3 +519,15 @@ svg {
     padding: 2rem 1rem;
     line-height: 1.6;
 }
+
+/* Animación de flujo en enlaces secuenciales de hojas (B+) */
+.leaf-sequence-link {
+    stroke-dasharray: 6, 4;
+    animation: flowDash 1.5s linear infinite;
+}
+
+@keyframes flowDash {
+    to {
+        stroke-dashoffset: -20;
+    }
+}
